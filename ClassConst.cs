@@ -29,6 +29,7 @@ namespace SteamAndGasCloud
         public const int T0 = 7000; //K (r=r0)
         public const int Tb = 373; //K (r=rb)
         public const double r0 = 2 / 1000; //m
+        
 
     }
 }
