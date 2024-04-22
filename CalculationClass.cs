@@ -37,49 +37,50 @@ namespace SteamAndGasCloud
         //V[i+1]
         public double СalculateFlowRateOfAblationProducts(double currentTime, double tDelta, double Vi, double piPlus1, double pi, double ro1i)
         {
-            return GetAcomponentFromFlowRate(currentTime, tDelta, Vi) * GetBcomponentFromFlowRate(currentTime, tDelta, Vi) - GetCcomponentFromFlowRate(currentTime, tDelta, Vi, piPlus1, pi, ro1i);
+            return GetFlowRate(currentTime, tDelta, Vi, piPlus1, pi, ro1i);
         }
         //U[i+1]
         public double СalculateFlowRateOfWaterVapor(double currentTime, double tDelta, double Ui, double piPlus1, double pi, double ro2i)
         {
-            return GetAcomponentFromFlowRate(currentTime, tDelta, Ui) * GetBcomponentFromFlowRate(currentTime, tDelta, Ui) - GetCcomponentFromFlowRate(currentTime, tDelta, Ui, piPlus1, pi, ro2i);
+            return GetFlowRate(currentTime, tDelta, Ui, piPlus1, pi, ro2i);
         }
         // P[i+1]
         public double СalculatePressureOfSteamGasMixture(double deltaFunk, double constA, double constB, double currentTime, double tDelta, double Ui, double Vi, double ro1i, double ro2i, double pi, double TiPlus1)
         {
             return GetAcomponentFromPi(currentTime, tDelta, Vi, Ui, TiPlus1) * GetBcomponentFromPi(deltaFunk, constA, constB, currentTime, tDelta, Ui, Vi, ro1i, ro2i, pi);
         }
-        // T[i]
+        // T[i+1]
         public double СalculateTemperature(double ro1i, double ro2i, double tDelta, double Vi, double Ui, double currentTime, double TiMinus1, double TiPlus1)
         {
             return GetUpFromT(ro1i, ro2i, tDelta, Vi, Ui, currentTime, TiMinus1, TiPlus1) / GetDownFromT(ro1i, ro2i, tDelta, Vi, Ui, currentTime);
         }
 
-        private double GetUpFromT(double ro1i, double ro2i, double tDelta, double Vi, double Ui, double currentTime, double TiMinus1, double TiPlus1)
+        private double GetUpFromT(double ro1i, double ro2i, double tDelta, double Vi, double Ui, double currentTime, double TiMinus1, double Ti)
         {
-            var up1 = GetAcomponentFromT(ro1i, Vi, ClassConst.Cp1, currentTime, tDelta);
-            var up2 = GetAcomponentFromT(ro2i, Ui, ClassConst.Cp2, currentTime, tDelta);
+            var up1 = GetAcomponentFromT(currentTime, tDelta);
+            var up2 = TiMinus1 - 2 * Ti - 2 * Ti / GetRadius(currentTime);
+            var up3 = Ti * GetBcomponentFromT(ro1i, ro2i, ClassConst.Cp1, ClassConst.Cp1, tDelta);
+            var up4 = Ti * GetCcomponentFromT(ro1i, ClassConst.Cp1, ro2i, ClassConst.Cp2, Vi, Ui, currentTime, tDelta);
 
-            var up3 = GetBcomponentFromT(currentTime, tDelta);
-            var up4 = 2 / GetRadius(currentTime) + 1 / GetDeltaRadius(currentTime - tDelta, currentTime);
-
-            var up5 = up3 * TiMinus1 / GetDeltaRadius(currentTime - tDelta, currentTime);
-            return TiPlus1 * (up1 + up2 - up3 * up4) - up5;
+            return up1 * up2 + up3 + up4;
         }
         private double GetDownFromT(double ro1i, double ro2i, double tDelta, double Vi, double Ui, double currentTime)
         {
-            var down1 = GetAcomponentFromT(ro1i, Vi, ClassConst.Cp1, currentTime, tDelta);
-            var down2 = GetAcomponentFromT(ro2i, Ui, ClassConst.Cp2, currentTime, tDelta);
-
-            var down3 = 2 * GetBcomponentFromT(currentTime, tDelta) * (1 / GetRadius(currentTime) + 1 / GetDeltaRadius(currentTime - tDelta, currentTime));
+            var down1 = GetBcomponentFromT(ro1i, ro2i, ClassConst.Cp1, ClassConst.Cp1, tDelta);
+            var down2 = GetCcomponentFromT(ro1i, ClassConst.Cp1, ro2i, ClassConst.Cp2, Vi, Ui, currentTime, tDelta);
+            var down3 = GetAcomponentFromT(currentTime, tDelta) * (1 + 2 / GetRadius(currentTime));
 
             return down1 + down2 - down3;
         }
-        private double GetAcomponentFromT(double roi, double value, double cp, double currentTime, double tDelta)
+        private double GetCcomponentFromT(double ro1i, double cp1, double ro2i, double cp2, double Vi, double Ui, double currentTime, double tDelta)
         {
-            return roi * cp * GetValueFirstComponent(tDelta, value, currentTime - tDelta, currentTime);
+            return (ro1i * cp1 * Vi + ro2i * cp2 * Ui) / GetDeltaRadius(currentTime - tDelta, currentTime);
         }
-        private double GetBcomponentFromT(double currentTime, double tDelta)
+        private double GetBcomponentFromT(double roi, double ro2i, double cp1, double cp2, double tDelta)
+        {
+            return (roi * cp1 + ro2i * cp2) / tDelta;
+        }
+        private double GetAcomponentFromT(double currentTime, double tDelta)
         {
             return (ClassConst.alpha1 + ClassConst.alpha2) / GetDeltaRadius(currentTime - tDelta, currentTime);
         }
@@ -89,21 +90,14 @@ namespace SteamAndGasCloud
             var a2 = (valuePlus1 - value) / GetDeltaRadius(currentTime - tDelta, currentTime);
             return ro * (a1 + a2);
         }
-        private double GetAcomponentFromFlowRate(double currentTime, double tDelta, double value)
-        {
-            return value / GetValueFirstComponent(tDelta, value, currentTime - tDelta, currentTime);
-        }
-        private double GetBcomponentFromFlowRate(double currentTime, double tDelta, double value)
-        {
-            var b1 = GetValueSecondComponent(value, currentTime);
-            var b2 = GetValueFirstComponent(tDelta, value, currentTime - tDelta, currentTime);
-            return b2 - b1;
-        }
-        private double GetCcomponentFromFlowRate(double currentTime, double tDelta, double value, double piPlus1, double pi, double roi)
+
+        private double GetFlowRate(double currentTime, double tDelta, double value, double piPlus1, double pi, double roi)
         {
             var c1 = piPlus1 - pi;
-            var c2 = GetValueFirstComponent(tDelta, value, currentTime - tDelta, currentTime) * roi * GetDeltaRadius(currentTime - tDelta, currentTime);
-            return c1 / c2;
+            var c2 = roi * GetDeltaRadius(currentTime - tDelta, currentTime);
+            var c3 = GetValueSecondComponent(value, currentTime) * value;
+
+            return value - ((c1 / c2) + c3) / GetValueFirstComponent(tDelta, value, currentTime - tDelta, currentTime);
         }
         private double GetConstWithDeltaFunc(double deltaFunc, double constValue, double currentTime)
         {
